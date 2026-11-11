@@ -1,10 +1,15 @@
 import { Client } from "@modelcontextprotocol/sdk/client";
-import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp";
+import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { CLIENT_ID, URL_MCP } from "./constants.ts";
 import { CorosClientInfo, CorosProvider } from "./coros.provider.ts";
 
-export type CorosCredentials = Pick<CorosClientInfo, "clientInfo" | "tokens">;
+// codeVerifier is kept so a login started before a page reload or redirect
+// can still be finished by a new instance.
+export type CorosCredentials = Pick<
+  CorosClientInfo,
+  "clientInfo" | "tokens" | "codeVerifier"
+>;
 
 export type CorosConnectOptions = {
   redirect: string;
@@ -13,9 +18,9 @@ export type CorosConnectOptions = {
 };
 
 export class CorosConnect {
-  client: Client | null = null;
-  transport: StreamableHTTPClientTransport | null = null;
-  provider: CorosProvider;
+  private client: Client | null = null;
+  private transport: StreamableHTTPClientTransport | null = null;
+  private provider: CorosProvider;
   private store: CorosClientInfo = {
     clientInfo: null,
     tokens: null,
@@ -32,10 +37,15 @@ export class CorosConnect {
       getter: (field) => this.store[field],
       setter: async (data) => {
         this.store = { ...this.store, ...data };
-        if ("clientInfo" in data || "tokens" in data) {
+        if (
+          "clientInfo" in data ||
+          "tokens" in data ||
+          "codeVerifier" in data
+        ) {
           await this.onCredentials?.({
             clientInfo: this.store.clientInfo,
             tokens: this.store.tokens,
+            codeVerifier: this.store.codeVerifier,
           });
         }
       },
@@ -98,5 +108,28 @@ export class CorosConnect {
     await this.transport?.close().catch(() => {});
     this.client = null;
     this.transport = null;
+  }
+
+  // mcp:tools
+  public async tools() {
+    const res = await this.getClient().listTools();
+
+    return res.tools.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+    }));
+  }
+  // mcp:callTool
+  public async useTool(name: string, args: Record<string, unknown>) {
+    return await this.getClient().callTool({
+      name,
+      arguments: args,
+    });
+  }
+
+  private getClient(): Client {
+    if (!this.client) throw new Error("no available client");
+    return this.client;
   }
 }

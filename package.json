@@ -1,15 +1,24 @@
 {
   "name": "@nqhd3v/coros-connect",
   "version": "1.0.4",
-  "description": "",
+  "description": "query health data from COROS as an MCP client",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
     "clean": "rimraf dist",
     "prebuild": "npm run clean",
     "build": "tsc"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./crypto": {
+      "types": "./dist/crypto.d.ts",
+      "default": "./dist/crypto.js"
+    }
+  },
   "files": [
     "dist"
   ],

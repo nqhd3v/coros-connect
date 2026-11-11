@@ -1,9 +1,9 @@
-import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth";
+import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import {
   OAuthClientInformationMixed,
   OAuthClientMetadata,
   OAuthTokens,
-} from "@modelcontextprotocol/sdk/shared/auth";
+} from "@modelcontextprotocol/sdk/shared/auth.js";
 import { CLIENT_ID } from "./constants.ts";
 
 export type CorosClientInfo = {
