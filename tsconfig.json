@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "allowArbitraryExtensions": true,
+    "lib": ["es2023"],
+    "module": "NodeNext",
+    "outDir": "./dist",
+    "resolveJsonModule": true,
+    "rewriteRelativeImportExtensions": true,
+    "target": "es2023",
+    "rootDir": "./src",
+    "declaration": true,
+    "declarationMap": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "types": ["node"],
+  },
+  // These may be different for your repo:
+  "include": ["./src"],
+  "exclude": ["node_modules", "dist", "**/*/*.test.*", "**/*.fixture.*"],
+}
