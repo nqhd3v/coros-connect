@@ -17,6 +17,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Enable Corepack and Setup Node.js
+        run: corepack enable
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -34,7 +37,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          npm version ${{ github.event.inputs.bump }} -m "chore(release): %s [skip ci]"
+          npm version patch -m "chore(release): %s [skip ci]"
           git push --follow-tags
 
       - name: Publish to npm
