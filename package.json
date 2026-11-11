@@ -1,6 +1,6 @@
 {
   "name": "@nqhd3v/coros-connect",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "query health data from COROS as an MCP client",
   "scripts": {
     "clean": "rimraf dist",
