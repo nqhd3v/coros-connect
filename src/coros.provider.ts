@@ -4,19 +4,16 @@ import {
   OAuthClientMetadata,
   OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth";
-import { decrypt, encrypt } from "./crypto.ts";
 import { CLIENT_ID } from "./coros.ts";
 
 export type CorosClientInfo = {
   clientInfo: OAuthClientInformationMixed | null;
   tokens: OAuthTokens | null;
-  tokensEnc: string | null;
-  codeVerifierEnc: string | null;
+  codeVerifier: string | null;
   oauthState: string | null;
 };
 export type CorosProviderOptions = {
   redirect: string;
-  secretKey: string;
   getter?: <Field extends keyof CorosClientInfo>(
     field: Field,
   ) => Promise<CorosClientInfo[Field]> | CorosClientInfo[Field];
@@ -26,20 +23,18 @@ export type CorosProviderOptions = {
 export class CorosProvider implements OAuthClientProvider {
   authorizationUrl: URL | null = null;
   redirect: string;
-  secret: string;
   isTerminal: boolean;
 
   getter?: CorosProviderOptions["getter"];
   setter: CorosProviderOptions["setter"];
 
   constructor(
-    { redirect, getter, setter, secretKey }: CorosProviderOptions,
+    { redirect, getter, setter }: CorosProviderOptions,
     isTerminal = false,
   ) {
     this.redirect = redirect;
     this.getter = getter;
     this.setter = setter;
-    this.secret = secretKey;
     this.isTerminal = isTerminal;
   }
 
@@ -79,18 +74,18 @@ export class CorosProvider implements OAuthClientProvider {
 
   async tokens(): Promise<OAuthTokens | undefined> {
     this.log("corosClient - tokens");
-    const authTokens = await this.getter?.("tokensEnc");
+    const authTokens = await this.getter?.("tokens");
     if (!authTokens) return undefined;
-    return JSON.parse(decrypt(authTokens, this.secret)) as OAuthTokens;
+    return authTokens as OAuthTokens;
   }
 
   async saveTokens(tokens: OAuthTokens): Promise<void> {
     this.log("corosClient - saveTokens");
     await this.setter({
-      tokensEnc: encrypt(JSON.stringify(tokens), this.secret),
+      tokens,
       // The authorization is complete; the single-use material is now dead
       // weight, and dead credentials should not sit in a database.
-      codeVerifierEnc: null,
+      codeVerifier: null,
       oauthState: null,
     });
   }
@@ -102,15 +97,15 @@ export class CorosProvider implements OAuthClientProvider {
 
   async saveCodeVerifier(verifier: string): Promise<void> {
     this.log("corosClient - saveCodeVerifier");
-    await this.setter({ codeVerifierEnc: encrypt(verifier, this.secret) });
+    await this.setter({ codeVerifier: verifier });
   }
 
   async codeVerifier(): Promise<string> {
     this.log("corosClient - codeVerifier");
-    const codeVerifierEnc = await this.getter?.("codeVerifierEnc");
-    if (!codeVerifierEnc) {
+    const codeVerifier = await this.getter?.("codeVerifier");
+    if (!codeVerifier) {
       throw new Error("No authorization is in progress.");
     }
-    return decrypt(codeVerifierEnc, this.secret);
+    return codeVerifier;
   }
 }

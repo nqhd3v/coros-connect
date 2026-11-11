@@ -4,4 +4,10 @@ export type {
   CorosClientInfo,
   CorosProviderOptions,
 } from "./coros.provider.ts";
-export { randomToken } from "./crypto.ts";
+export {
+  randomToken,
+  encrypt,
+  decrypt,
+  secretsMatch,
+  sha256,
+} from "./crypto.ts";
