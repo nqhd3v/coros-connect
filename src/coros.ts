@@ -1,23 +1,49 @@
 import { Client } from "@modelcontextprotocol/sdk/client";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp";
-import { CorosProvider } from "./coros.provider.ts";
+import { CLIENT_ID, URL_MCP } from "./constants.ts";
+import { CorosClientInfo, CorosProvider } from "./coros.provider.ts";
 
-const URL_MCP = "https://mcpus.coros.com/mcp";
-export const CLIENT_ID = "COROS-CONNECT";
+export type CorosCredentials = Pick<CorosClientInfo, "clientInfo" | "tokens">;
+
+export type CorosConnectOptions = {
+  redirect: string;
+  credentials?: Partial<CorosCredentials>;
+  onCredentials?: (credentials: CorosCredentials) => Promise<void> | void;
+};
 
 export class CorosConnect {
-  isDebug: boolean;
   client: Client | null = null;
   transport: StreamableHTTPClientTransport | null = null;
   provider: CorosProvider;
+  private store: CorosClientInfo = {
+    clientInfo: null,
+    tokens: null,
+    codeVerifier: null,
+    oauthState: null,
+  };
+  private onCredentials: CorosConnectOptions["onCredentials"];
 
-  constructor(provider: CorosProvider, isDebug?: boolean) {
-    this.provider = provider;
-    this.isDebug = !!isDebug;
+  constructor({ redirect, credentials, onCredentials }: CorosConnectOptions) {
+    this.onCredentials = onCredentials;
+    this.store = { ...this.store, ...credentials };
+    this.provider = new CorosProvider({
+      redirect,
+      getter: (field) => this.store[field],
+      setter: async (data) => {
+        this.store = { ...this.store, ...data };
+        if ("clientInfo" in data || "tokens" in data) {
+          await this.onCredentials?.({
+            clientInfo: this.store.clientInfo,
+            tokens: this.store.tokens,
+          });
+        }
+      },
+    });
   }
 
   async login(): Promise<URL> {
+    this.provider.authorizationUrl = null;
     try {
       await this.checkConnect();
     } catch (error) {
@@ -25,7 +51,6 @@ export class CorosConnect {
     } finally {
       await this.close();
     }
-    this.debug("coros - login");
 
     const url = this.provider.authorizationUrl;
     if (!url)
@@ -33,12 +58,10 @@ export class CorosConnect {
         "COROS did not ask for authorization; it may already be connected.",
       );
 
-    this.debug("Authorize URL:", url.href);
     return url;
   }
 
   async verifyLoginCode(code: string) {
-    this.debug("coros - verifyLoginCode");
     const transport = new StreamableHTTPClientTransport(new URL(URL_MCP), {
       authProvider: this.provider,
     });
@@ -49,8 +72,17 @@ export class CorosConnect {
     }
   }
 
+  async connect(): Promise<Client> {
+    try {
+      await this.checkConnect();
+    } catch (error) {
+      await this.close();
+      throw error;
+    }
+    return this.client!;
+  }
+
   private async checkConnect() {
-    this.debug("coros - checkConnect");
     this.transport = new StreamableHTTPClientTransport(new URL(URL_MCP), {
       authProvider: this.provider,
     });
@@ -62,13 +94,9 @@ export class CorosConnect {
   }
 
   async close(): Promise<void> {
-    this.debug("coros - close");
     await this.client?.close().catch(() => {});
+    await this.transport?.close().catch(() => {});
     this.client = null;
     this.transport = null;
-  }
-
-  private debug(...messages: any[]) {
-    if (this.isDebug) console.log(...messages);
   }
 }

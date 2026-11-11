@@ -1,9 +1,6 @@
 export { CorosConnect as default } from "./coros.ts";
-export { CorosProvider } from "./coros.provider.ts";
-export type {
-  CorosClientInfo,
-  CorosProviderOptions,
-} from "./coros.provider.ts";
+export type { CorosConnectOptions, CorosCredentials } from "./coros.ts";
+export type { CorosClientInfo } from "./coros.provider.ts";
 export {
   randomToken,
   encrypt,
