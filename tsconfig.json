@@ -17,7 +17,6 @@
     "isolatedModules": true,
     "types": ["node"],
   },
-  // These may be different for your repo:
   "include": ["./src"],
   "exclude": ["node_modules", "dist", "**/*/*.test.*", "**/*.fixture.*"],
 }
