@@ -42,6 +42,15 @@ export type CorosTool = {
 export type CorosToolResult = Awaited<ReturnType<Client["callTool"]>>;
 
 // ================== PARSED =====================
+// device
+export type CorosDeviceParsed = {
+  name: string;
+  bluetoothId: string;
+  modelName: string;
+  serialNumber: string;
+  warrantyExpires: string;
+};
+// health data
 export type CorosDailyHealthSummary = {
   steps: string;
   calories: string;
@@ -72,7 +81,39 @@ export type CorosDailyHealthParsed = {
   note: string;
   days: CorosDailyHealthParsedData[];
 };
-export type CorosDailyHealthResult = {
-  parsed: CorosDailyHealthParsed | null;
+// training schedule
+export type CorosTraining = {
+  date: string;
+  unknownCode: string;
+  planId: string;
+  idInPlan: string;
+  distance: string;
+  estimatedTime: string;
+  load: string;
+};
+// user
+export type CorosUserInfo = {
+  birthday: string;
+  nickname: string;
+  gender: string; // Male
+  height: string;
+  weight: string;
+};
+// recovery status
+export type CorosRecoveryStatus = {
+  recovery: string;
+  level: string;
+  estimatedFullRecovery: string;
+};
+
+// result
+type CorosQueryResult<TParsed> = {
+  parsed: TParsed | null;
   originalData: CorosToolResult;
 };
+
+export type CorosDailyHealthResult = CorosQueryResult<CorosDailyHealthParsed>;
+export type CorosDevicesResult = CorosQueryResult<CorosDeviceParsed[]>;
+export type CorosTrainingScheduleResult = CorosQueryResult<CorosTraining[]>;
+export type CorosUserInfoResult = CorosQueryResult<CorosUserInfo>;
+export type CorosRecoveryStatusResult = CorosQueryResult<CorosRecoveryStatus>;

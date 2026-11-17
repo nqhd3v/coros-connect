@@ -2,9 +2,17 @@ import { describe, it, expect } from "vitest";
 import {
   getTextContent,
   parseDailyHealthData,
+  parseDevices,
+  parseRecoveryStatus,
+  parseTrainingSchedule,
+  parseUserInfo,
   toCamelCase,
 } from "../src/helper.ts";
 import { DAILY_HEALTH_DATA } from "../__mocks__/daily-health-data.ts";
+import { DEVICES } from "../__mocks__/devices.ts";
+import { RECOVERY_STATUS } from "../__mocks__/recovery-status.ts";
+import { TRAINING_SCHEDULE } from "../__mocks__/training-schedule.ts";
+import { USER_INFO } from "../__mocks__/user-info.ts";
 
 const HEADER =
   "Daily Health Data — Last 1 days | Resting HR: 55 bpm | HRV Baseline: 48 ms\nNote: sleep entries are dated by their wake-up day.";
@@ -191,5 +199,152 @@ describe("getTextContent", () => {
   it("keeps plain text that only looks quoted", () => {
     const text = '"a" and "b"';
     expect(getTextContent({ content: [{ type: "text", text }] })).toBe(text);
+  });
+});
+
+describe("toCamelCase (camelCase words)", () => {
+  it("keeps a single word that is already camelCase", () => {
+    expect(toCamelCase("idInPlan")).toBe("idInPlan");
+  });
+
+  it("still lowercases all-caps words", () => {
+    expect(toCamelCase("HRV")).toBe("hrv");
+    expect(toCamelCase("HRV Baseline")).toBe("hrvBaseline");
+  });
+});
+
+describe("parseDevices", () => {
+  it("parses every device", () => {
+    expect(parseDevices(DEVICES.content[0].text)).toEqual([
+      {
+        name: "COROS APEX 2",
+        bluetoothId: "A1B2C3",
+        modelName: "COROS W100",
+        serialNumber: "W00TEST01",
+        warrantyExpires: "2030-01-01 08:00:00",
+      },
+      {
+        name: "COROS VERTIX 2",
+        bluetoothId: "D4E5F6",
+        modelName: "COROS W200",
+        serialNumber: "W00TEST02",
+        warrantyExpires: "2031-06-15 12:30:45",
+      },
+    ]);
+  });
+
+  it("parses more than 9 devices", () => {
+    const text =
+      "Bound Devices (12)\n========================\n\n" +
+      Array.from(
+        { length: 12 },
+        (_, i) => `${i + 1}. COROS APEX 2\n   Serial Number: W${i}`,
+      ).join("\n\n");
+    const devices = parseDevices(text);
+    expect(devices).toHaveLength(12);
+    expect(devices?.[11]).toEqual({ name: "COROS APEX 2", serialNumber: "W11" });
+  });
+
+  it("returns an empty list when no device is bound", () => {
+    expect(parseDevices("Bound Devices (0)\n========================")).toEqual(
+      [],
+    );
+  });
+
+  it("returns null for other text", () => {
+    expect(parseDevices("")).toBeNull();
+    expect(parseDevices("User Profile Information")).toBeNull();
+  });
+});
+
+describe("parseUserInfo", () => {
+  it("parses the profile and normalizes birthday", () => {
+    expect(parseUserInfo(USER_INFO.content[0].text)).toEqual({
+      height: "170.0 cm",
+      weight: "65.0 kg",
+      birthday: "19900115",
+      gender: "Female",
+      nickname: "Test User",
+    });
+  });
+
+  it("returns null for other text", () => {
+    expect(parseUserInfo("")).toBeNull();
+    expect(parseUserInfo("User Profile Information")).toBeNull();
+    expect(parseUserInfo("Recovery Status\n\nLevel: Normal")).toBeNull();
+  });
+});
+
+describe("parseRecoveryStatus", () => {
+  it("parses the recovery status", () => {
+    expect(parseRecoveryStatus(RECOVERY_STATUS.content[0].text)).toEqual({
+      recovery: "75%",
+      level: "Normal",
+      estimatedFullRecovery: "12h",
+    });
+  });
+
+  it("returns null for other text", () => {
+    expect(parseRecoveryStatus("")).toBeNull();
+    expect(parseRecoveryStatus("Recovery Status")).toBeNull();
+  });
+});
+
+describe("parseTrainingSchedule", () => {
+  const WORKOUT_1 = {
+    date: "20260105",
+    unknownCode: "P10000",
+    planId: "100000000000000001",
+    idInPlan: "1",
+    distance: "5.00 km",
+    estimatedTime: "0:30:00",
+    load: "50 TL",
+  };
+
+  it("parses workouts and skips the footer note", () => {
+    expect(parseTrainingSchedule(TRAINING_SCHEDULE.content[0].text)).toEqual([
+      WORKOUT_1,
+      {
+        date: "20260107",
+        unknownCode: "P10001",
+        planId: "100000000000000001",
+        idInPlan: "2",
+        distance: "10.00 km",
+        estimatedTime: "1:05:30",
+        load: "120 TL",
+      },
+    ]);
+  });
+
+  it("keeps the last workout when there is no footer", () => {
+    const text = TRAINING_SCHEDULE.content[0].text
+      .split("\n\n")
+      .slice(0, -1)
+      .join("\n\n");
+    expect(parseTrainingSchedule(text)).toHaveLength(2);
+  });
+
+  it("parses a standalone workout without code row", () => {
+    const text =
+      "Training Schedule\n========================\n\n2026-01-05\nidInPlan: 7\nDistance: 5.00 km";
+    expect(parseTrainingSchedule(text)).toEqual([
+      {
+        date: "20260105",
+        unknownCode: "",
+        idInPlan: "7",
+        distance: "5.00 km",
+      },
+    ]);
+  });
+
+  it("returns an empty list for a week without workouts", () => {
+    expect(
+      parseTrainingSchedule("Training Schedule\n========================"),
+    ).toEqual([]);
+  });
+
+  it("returns null for other text", () => {
+    expect(parseTrainingSchedule("")).toBeNull();
+    expect(parseTrainingSchedule("Training Schdule\n\n2026-01-05")).toBeNull();
   });
 });

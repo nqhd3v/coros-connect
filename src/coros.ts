@@ -7,9 +7,31 @@ import {
   CorosClientInfo,
   CorosConnectOptions,
   CorosDailyHealthResult,
+  CorosDevicesResult,
+  CorosRecoveryStatusResult,
   CorosTool,
+  CorosToolResult,
+  CorosTrainingScheduleResult,
+  CorosUserInfoResult,
 } from "./types.ts";
-import { getTextContent, parseDailyHealthData } from "./helper.ts";
+import {
+  getTextContent,
+  parseDailyHealthData,
+  parseDevices,
+  parseRecoveryStatus,
+  parseTrainingSchedule,
+  parseUserInfo,
+} from "./helper.ts";
+
+// COROS tool name -> method that calls and parses it
+const AVAILABLE_TOOL_HANDLERS = {
+  queryUserInfo: "getUserInfo",
+  queryDevices: "getDevices",
+  queryDailyHealthData: "getDailyHealthData",
+  queryTrainingSchedule: "getTrainingSchedule",
+  queryRecoveryStatus: "getRecoveryStatus",
+} as const satisfies Record<string, keyof CorosConnect>;
+type AvailableTool = keyof typeof AVAILABLE_TOOL_HANDLERS;
 
 export class CorosConnect {
   private client: Client | null = null;
@@ -158,6 +180,20 @@ export class CorosConnect {
   }
   // ============================ TOOLS =========================
 
+  // calls a COROS tool, throws on a tool error, and parses its text content
+  private async queryAndParse<TParsed>(
+    name: string,
+    args: Record<string, unknown>,
+    parse: (text: string) => TParsed | null,
+  ): Promise<{ parsed: TParsed | null; originalData: CorosToolResult }> {
+    const data = await this.getClient().callTool({ name, arguments: args });
+    const text = getTextContent(data);
+    if (data.isError) {
+      throw new Error(`${name} failed: ${text ?? "unknown error"}`);
+    }
+    return { parsed: text ? parse(text) : null, originalData: data };
+  }
+
   /**
    * https://github.com/coroslab/COROS-MCP/blob/main/docs/en/tools.md#querydailyhealthdata
    * @param {number} days Number of recent days, COROS defaults to 7.
@@ -169,18 +205,58 @@ export class CorosConnect {
     if (days !== undefined && (!Number.isInteger(days) || days < 1)) {
       throw new RangeError("days must be a positive integer");
     }
-    const data = await this.getClient().callTool({
-      name: "queryDailyHealthData",
-      arguments: days === undefined ? {} : { days },
-    });
-    const text = getTextContent(data);
-    if (data.isError) {
-      throw new Error(`queryDailyHealthData failed: ${text ?? "unknown error"}`);
-    }
+    return this.queryAndParse(
+      "queryDailyHealthData",
+      days === undefined ? {} : { days },
+      parseDailyHealthData,
+    );
+  }
 
+  /**
+   * https://github.com/coroslab/COROS-MCP/blob/main/docs/en/tools.md#querydevices
+   */
+  public async getDevices(): Promise<CorosDevicesResult> {
+    return this.queryAndParse("queryDevices", {}, parseDevices);
+  }
+
+  /**
+   * https://github.com/coroslab/COROS-MCP/blob/main/docs/en/tools.md#queryuserinfo
+   */
+  public async getUserInfo(): Promise<CorosUserInfoResult> {
+    return this.queryAndParse("queryUserInfo", {}, parseUserInfo);
+  }
+
+  /**
+   * https://github.com/coroslab/COROS-MCP/blob/main/docs/en/tools.md#queryrecoverystatus
+   */
+  public async getRecoveryStatus(): Promise<CorosRecoveryStatusResult> {
+    return this.queryAndParse("queryRecoveryStatus", {}, parseRecoveryStatus);
+  }
+
+  /**
+   * https://github.com/coroslab/COROS-MCP/blob/main/docs/en/tools.md#querytrainingschedule
+   * Omit both dates for the current Monday-Sunday week.
+   * @throws When a date is not in `yyyyMMdd` format, or COROS returns an error.
+   */
+  public async getTrainingSchedule(
+    args: { startDate?: string; endDate?: string } = {},
+  ): Promise<CorosTrainingScheduleResult> {
+    for (const [key, value] of Object.entries(args)) {
+      if (value !== undefined && !/^\d{8}$/.test(value)) {
+        throw new RangeError(`${key} must be in yyyyMMdd format`);
+      }
+    }
+    return this.queryAndParse(
+      "queryTrainingSchedule",
+      args,
+      parseTrainingSchedule,
+    );
+  }
+
+  get availableTools() {
     return {
-      parsed: text ? parseDailyHealthData(text) : null,
-      originalData: data,
+      tools: Object.keys(AVAILABLE_TOOL_HANDLERS) as AvailableTool[],
+      handler: AVAILABLE_TOOL_HANDLERS,
     };
   }
 }
