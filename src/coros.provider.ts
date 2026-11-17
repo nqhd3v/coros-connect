@@ -5,20 +5,7 @@ import {
   OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { CLIENT_ID } from "./constants.ts";
-
-export type CorosClientInfo = {
-  clientInfo: OAuthClientInformationMixed | null;
-  tokens: OAuthTokens | null;
-  codeVerifier: string | null;
-  oauthState: string | null;
-};
-export type CorosProviderOptions = {
-  redirect: string;
-  getter: <Field extends keyof CorosClientInfo>(
-    field: Field,
-  ) => Promise<CorosClientInfo[Field]> | CorosClientInfo[Field];
-  setter: (payload: Partial<CorosClientInfo>) => Promise<void> | void;
-};
+import { CorosProviderOptions } from "./types.ts";
 
 export class CorosProvider implements OAuthClientProvider {
   authorizationUrl: URL | null = null;

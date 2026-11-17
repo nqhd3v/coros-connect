@@ -5,7 +5,10 @@
   "scripts": {
     "clean": "rimraf dist",
     "prebuild": "npm run clean",
-    "build": "tsc"
+    "build": "tsc",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "typecheck": "tsc -p tsconfig.test.json"
   },
   "repository": {
     "type": "git",
@@ -33,9 +36,10 @@
   "devDependencies": {
     "@types/node": "^26.6.6",
     "rimraf": "^6.1.4",
-    "tsc": "^2.0.4",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2"

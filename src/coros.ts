@@ -1,21 +1,15 @@
 import { Client } from "@modelcontextprotocol/sdk/client";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { CLIENT_ID, URL_MCP } from "./constants.ts";
-import { CorosClientInfo, CorosProvider } from "./coros.provider.ts";
-
-// codeVerifier is kept so a login started before a page reload or redirect
-// can still be finished by a new instance.
-export type CorosCredentials = Pick<
+import { CLIENT_ID, CLIENT_VERSION, URL_MCP } from "./constants.ts";
+import { CorosProvider } from "./coros.provider.ts";
+import {
   CorosClientInfo,
-  "clientInfo" | "tokens" | "codeVerifier"
->;
-
-export type CorosConnectOptions = {
-  redirect: string;
-  credentials?: Partial<CorosCredentials>;
-  onCredentials?: (credentials: CorosCredentials) => Promise<void> | void;
-};
+  CorosConnectOptions,
+  CorosDailyHealthResult,
+  CorosTool,
+} from "./types.ts";
+import { getTextContent, parseDailyHealthData } from "./helper.ts";
 
 export class CorosConnect {
   private client: Client | null = null;
@@ -52,14 +46,21 @@ export class CorosConnect {
     });
   }
 
-  async login(): Promise<URL> {
+  /**
+   * Call this function to get Authorization URL.
+   * Uses its own connection, so an active one from `connect` stays open.
+   * @returns {URL} Authorization URL.
+   */
+  public async login(): Promise<URL> {
     this.provider.authorizationUrl = null;
+    const { client, transport } = this.createClient();
     try {
-      await this.checkConnect();
+      await client.connect(transport);
     } catch (error) {
       if (!(error instanceof UnauthorizedError)) throw error;
     } finally {
-      await this.close();
+      await client.close().catch(() => {});
+      await transport.close().catch(() => {});
     }
 
     const url = this.provider.authorizationUrl;
@@ -71,7 +72,12 @@ export class CorosConnect {
     return url;
   }
 
-  async verifyLoginCode(code: string) {
+  /**
+   * After call login, COROS will redirect back to `redirect` you set,
+   * with `code` in search params, call this func with that code to verify.
+   * @param {String} code Verify code returns by COROS.
+   */
+  public async verifyLoginCode(code: string) {
     const transport = new StreamableHTTPClientTransport(new URL(URL_MCP), {
       authProvider: this.provider,
     });
@@ -82,8 +88,12 @@ export class CorosConnect {
     }
   }
 
-  async connect(): Promise<Client> {
+  /**
+   * Call this to refresh token when you already logged-in
+   */
+  public async connect(): Promise<Client> {
     try {
+      await this.close();
       await this.checkConnect();
     } catch (error) {
       await this.close();
@@ -92,26 +102,42 @@ export class CorosConnect {
     return this.client!;
   }
 
-  private async checkConnect() {
-    this.transport = new StreamableHTTPClientTransport(new URL(URL_MCP), {
+  private createClient() {
+    const transport = new StreamableHTTPClientTransport(new URL(URL_MCP), {
       authProvider: this.provider,
     });
-    this.client = new Client(
-      { name: CLIENT_ID, version: "1.0.0" },
+    const client = new Client(
+      { name: CLIENT_ID, version: CLIENT_VERSION },
       { capabilities: {} },
     );
+    return { client, transport };
+  }
+
+  private async checkConnect() {
+    const { client, transport } = this.createClient();
+    this.client = client;
+    this.transport = transport;
     await this.client.connect(this.transport);
   }
 
-  async close(): Promise<void> {
+  public async close(): Promise<void> {
     await this.client?.close().catch(() => {});
     await this.transport?.close().catch(() => {});
     this.client = null;
     this.transport = null;
   }
 
-  // mcp:tools
-  public async tools() {
+  private getClient(): Client {
+    if (!this.client) throw new Error("Not connected. Call connect() first.");
+    return this.client;
+  }
+
+  // ============================ BASE =========================
+
+  /**
+   * Call this to get all tools supported by COROS
+   */
+  public async tools(): Promise<CorosTool[]> {
     const res = await this.getClient().listTools();
 
     return res.tools.map((tool) => ({
@@ -120,16 +146,41 @@ export class CorosConnect {
       inputSchema: tool.inputSchema,
     }));
   }
-  // mcp:callTool
+  /**
+   * Some tools current not supports by this package, so u can check
+   * `inputSchema` from `tools` to call that.
+   */
   public async useTool(name: string, args: Record<string, unknown>) {
     return await this.getClient().callTool({
       name,
       arguments: args,
     });
   }
+  // ============================ TOOLS =========================
 
-  private getClient(): Client {
-    if (!this.client) throw new Error("no available client");
-    return this.client;
+  /**
+   * https://github.com/coroslab/COROS-MCP/blob/main/docs/en/tools.md#querydailyhealthdata
+   * @param {number} days Number of recent days, COROS defaults to 7.
+   * @throws When `days` is not a positive integer, or COROS returns an error.
+   */
+  public async getDailyHealthData(
+    days?: number,
+  ): Promise<CorosDailyHealthResult> {
+    if (days !== undefined && (!Number.isInteger(days) || days < 1)) {
+      throw new RangeError("days must be a positive integer");
+    }
+    const data = await this.getClient().callTool({
+      name: "queryDailyHealthData",
+      arguments: days === undefined ? {} : { days },
+    });
+    const text = getTextContent(data);
+    if (data.isError) {
+      throw new Error(`queryDailyHealthData failed: ${text ?? "unknown error"}`);
+    }
+
+    return {
+      parsed: text ? parseDailyHealthData(text) : null,
+      originalData: data,
+    };
   }
 }

@@ -8,6 +8,7 @@ import {
 
 const ALGORITHM = "aes-256-gcm";
 const IV_BYTES = 12;
+const AUTH_TAG_BYTES = 16;
 
 function getSecretKey(key: string): Buffer {
   const decoded = Buffer.from(key, "base64");
@@ -37,8 +38,14 @@ export function decrypt(payload: string, secret: string): string {
     .split(".")
     .map((part) => Buffer.from(part, "base64url"));
   if (!iv || !body || !tag) throw new Error("Stored ciphertext is malformed");
+  // a shortened tag makes forging ciphertext far easier, so require the full one
+  if (tag.length !== AUTH_TAG_BYTES) {
+    throw new Error("Stored ciphertext is malformed");
+  }
 
-  const decipher = createDecipheriv(ALGORITHM, secretKey, iv);
+  const decipher = createDecipheriv(ALGORITHM, secretKey, iv, {
+    authTagLength: AUTH_TAG_BYTES,
+  });
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(body), decipher.final()]).toString(
     "utf8",

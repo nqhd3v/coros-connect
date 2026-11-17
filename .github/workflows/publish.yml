@@ -30,7 +30,13 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
-      - name: Build project
+      - name: Type check
+        run: yarn typecheck
+
+      - name: Test
+        run: yarn test:run
+
+      - name: Build
         run: yarn build
 
       - name: Configure Git and bump version
