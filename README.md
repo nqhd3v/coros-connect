@@ -4,6 +4,8 @@ Connect to the [COROS](https://coros.com) MCP server (`https://mcpus.coros.com/m
 
 `coros-connect` wraps the [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk) and handles the OAuth flow (dynamic client registration, PKCE, token refresh) for you.
 
+You can try this: https://github.com/nqhd3v/coros-connect-example
+
 ## Install
 
 ```bash
